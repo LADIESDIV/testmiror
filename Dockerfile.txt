@@ -1,0 +1,16 @@
+FROM gitlab/gitlab-ce:latest
+
+MAINTAINER LD
+
+# PROXY
+ENV no_proxy localhost,127.0.0.1
+
+# LOCALE
+RUN export LANG=fr_FR.UTF-8
+# TIMEZONE
+ENV TZ Europe/Paris
+# TIMEZONE
+ENV TZ Europe/Paris
+RUN cp /usr/share/zoneinfo/Europe/Paris /etc/localtime
+
+RUN /opt/gitlab/embedded/bin/python3.4 -m pip install --trusted-host pypi.python.org requests
