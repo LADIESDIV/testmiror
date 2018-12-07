@@ -1,0 +1,96 @@
+# .gitlab-ci.yml
+variables:
+  DOCKER_REGISTRY: registry.infra.op.acp.adeo.com
+  IMAGE_TAG: $DOCKER_REGISTRY/iky/rules-engine:$CI_COMMIT_REF_SLUG
+  PREPROD_IMAGE_TAG: registry.infra.prep.acp.adeo.com/iky/rules-engine:preprod
+  PROD_IMAGE_TAG: registry.infra.acp.adeo.com/iky/rules-engine:production
+
+cache:
+  untracked: true
+  paths:
+  - node_modules/
+
+stages:
+  - build
+  - test
+  - deploy
+
+build: 
+  stage: build
+  script:
+    - npm config set registry https://nexus3.adeo.com/repository/NPM-All/
+    - npm install
+  #choix runner
+  tags:
+   - build
+   - docker
+   - images
+  artifacts:
+    paths:
+      - node_modules/
+
+lint:
+  stage: test
+  script:
+    - ls -l
+    - npm run lint
+  tags:
+   - build
+   - docker
+   - images
+
+integration test: 
+  stage: test
+  image: registry.adeo.com/public-images/node:latest
+  script:
+    - ls -l
+    - node --version
+    - npm test
+  tags:
+   - build
+   - docker
+   - images
+
+docker:
+  stage: deploy
+  script:
+    - docker login -u builder -p $DOCKER_BUILDER_TOKEN $DOCKER_REGISTRY
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
+  tags:
+    - build
+    - docker
+    - images
+  only:
+    - master
+
+deploy_preprod:
+ stage: deploy
+ script:
+  - curl -v -H "Content-Type:application/json" -X POST -d "{\"tag\":\"$IMAGE_TAG\"}" http://image-scanner.apps.op.acp.adeo.com/san/api/v1.0/cvescan
+  - curl -v -H "Content-Type:application/json" -X POST -d "{\"src_tag\":\"$IMAGE_TAG\", \"dst_tag\":\"$PREPROD_IMAGE_TAG\"}" http://image-scanner.apps.op.acp.adeo.com/scan/api/v1.0/promote
+ environment:
+    name: preprod
+ when: manual
+ only:
+   - master
+ tags:
+ - build
+ - docker
+ - images
+
+deploy_prod:
+ stage: deploy
+ script:
+  - curl -v -H "Content-Type:application/json" -X POST -d "{\"tag\":\"$IMAGE_TAG\"}" http://image-scanner.apps.op.acp.adeo.com/san/api/v1.0/cvescan
+  - curl -v -H "Content-Type:application/json" -X POST -d "{\"src_tag\":\"$IMAGE_TAG\", \"dst_tag\":\"$PROD_IMAGE_TAG\"}" http://image-scanner.apps.op.acp.adeo.com/scan/api/v1.0/promote
+ environment:
+    name: prod
+ when: manual
+ only:
+   - master
+ tags:
+ - build
+ - docker
+ - images
+
